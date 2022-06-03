@@ -71,7 +71,6 @@ class YOLOModel:
             ):
 
         source = str(source)
-        is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
 
         # Dataloader
         dataset = LoadImages(source, img_size=self.imgsz, stride=self.stride, auto=self.pt)
@@ -79,23 +78,17 @@ class YOLOModel:
         # Run inference
         dt, seen = [0.0, 0.0, 0.0], 0
         for path, im, im0s, vid_cap, s in dataset:
-            t1 = time_sync()
             im = torch.from_numpy(im).to(self.device)
             im = im.half() if self.model.fp16 else im.float()
             im /= 255
             if len(im.shape) == 3:
                 im = im[None]  # expand for batch dim
-            t2 = time_sync()
-            dt[0] += t2 - t1
 
             # Inference
             pred = self.model(im)
-            t3 = time_sync()
-            dt[1] += t3 - t2
 
             # NMS
             pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
-            dt[2] += time_sync() - t3
 
             # Process predictions
             for i, det in enumerate(pred):  # per image
@@ -114,13 +107,6 @@ class YOLOModel:
                         label = f'{self.names[c]}@{conf:.2f}'
 
                         crop = save_one_box(xyxy, imc, file=None, BGR=True, save=False)
-
-            # Print time (inference-only)
-            LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
-
-        # Print results
-        t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
-        LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *self.imgsz)}' % t)
 
         return crop, label
 
